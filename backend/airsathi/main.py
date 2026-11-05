@@ -100,11 +100,17 @@ def health():
 @app.get("/api/stations")
 def stations(mode: str = "live", period: str = "spring", at: Optional[str] = None):
     """All 8 stations with their current AQI (for the map and the station picker)."""
-    out = []
-    for s in STATIONS:
-        v = _view(s["id"], mode, period, at)
-        out.append({**s, "now": v["now"]})
-    return out
+    if mode != "demo":                                  # live: one database query for all stations
+        rows = {r["station"]: r for r in db.query("SELECT * FROM station_now")}
+        out = []
+        for s in STATIONS:
+            r = rows.get(s["id"])
+            now = ({"ts": r["ts"], "aqi": r["aqi"], "category": category(r["aqi"]), "dominant": r["dominant"], "tier": r["tier"],
+                    "label": r["label"], "age_h": r["data_age_h"]} if r else
+                   {"ts": None, "aqi": None, "category": None, "dominant": None, "tier": "none", "label": views.TIER_LABELS["none"], "age_h": None})
+            out.append({**s, "now": now})
+        return out
+    return [{**s, "now": _view(s["id"], mode, period, at)["now"]} for s in STATIONS]
 
 
 @app.get("/api/stations/nearest")

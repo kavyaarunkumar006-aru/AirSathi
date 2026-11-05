@@ -30,14 +30,23 @@ def _oaq(path, params=None):
     if not key:
         raise RuntimeError("OPENAQ_API_KEY is not set")
     for attempt in range(3):
-        r = requests.get(OPENAQ + path, params=params, headers={"X-API-Key": key}, timeout=40)
+        try:
+            r = requests.get(OPENAQ + path, params=params, headers={"X-API-Key": key}, timeout=40)
+        except requests.RequestException:
+            if attempt == 2:
+                raise
+            time.sleep(5)
+            continue
         if r.status_code == 429:                  # free tier: 60 requests per minute
             time.sleep(20)
+            continue
+        if r.status_code >= 500 and attempt < 2:  # OpenAQ hiccup: wait and try again
+            time.sleep(5)
             continue
         r.raise_for_status()
         time.sleep(1.1)
         return r.json()
-    raise RuntimeError("OpenAQ rate limit")
+    raise RuntimeError("OpenAQ did not answer after 3 tries")
 
 
 def openaq_sensors(location_id):
@@ -83,8 +92,15 @@ def cams_hourly(lat, lon, past_days=2, forecast_days=3):
     """{hour(IST, naive): {pollutant: value}} from CAMS. CO arrives in ug/m3 and is converted to mg/m3."""
     params = {"latitude": lat, "longitude": lon, "hourly": ",".join(CAMS_VARS.values()), "timezone": "Asia/Kolkata",
               "past_days": past_days, "forecast_days": forecast_days}
-    r = requests.get(CAMS, params=params, timeout=40)
-    r.raise_for_status()
+    for attempt in range(3):                      # Open-Meteo sometimes times out: try up to 3 times
+        try:
+            r = requests.get(CAMS, params=params, timeout=60)
+            r.raise_for_status()
+            break
+        except requests.RequestException:
+            if attempt == 2:
+                raise
+            time.sleep(5)
     h = r.json()["hourly"]
     out = {}
     for i, ts in enumerate(h["time"]):

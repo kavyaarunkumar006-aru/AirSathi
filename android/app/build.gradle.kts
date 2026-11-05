@@ -20,8 +20,10 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
-        // Change this after you deploy the backend on Render (you can also change it inside the app: Me -> Server).
-        buildConfigField("String", "DEFAULT_SERVER", "\"https://airsathi-api.onrender.com/\"")
+        // Backend address. The GitHub build passes it with -PairsathiServer=...; otherwise this default is used.
+        // You can also change it inside the app: Me -> Server address.
+        val server = (project.findProperty("airsathiServer") as String?) ?: "https://airsathi-api.onrender.com/"
+        buildConfigField("String", "DEFAULT_SERVER", "\"$server\"")
     }
 
     buildTypes {

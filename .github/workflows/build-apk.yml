@@ -1,0 +1,45 @@
+# Builds the AirSathi Android app (APK) on GitHub's computers. No Android Studio needed.
+# GitHub repo -> Actions -> build-android-apk -> Run workflow. When it finishes (about 8-12 minutes), open the run and download
+# "AirSathi-apk" at the bottom (Artifacts). Inside is app-debug.apk: copy it to a phone and install it.
+#
+# Optional repository secret GOOGLE_SERVICES_JSON = the whole text of google-services.json (for phone notifications).
+name: build-android-apk
+
+on:
+  workflow_dispatch:
+    inputs:
+      server_url:
+        description: "Backend address (your Render URL, ending with /)"
+        required: true
+        default: "https://airsathi-api.onrender.com/"
+  push:
+    paths:
+      - "android/**"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Add google-services.json (if the secret exists)
+        env:
+          GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GS" ]; then printf '%s' "$GS" > app/google-services.json; echo "push notifications: ON"; else echo "push notifications: OFF (no GOOGLE_SERVICES_JSON secret)"; fi
+      - name: Build the APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace -PairsathiServer="${{ github.event.inputs.server_url || 'https://airsathi-api.onrender.com/' }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AirSathi-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk

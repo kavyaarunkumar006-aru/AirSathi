@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sathi, the AirSathi mascot: a smiling cloud with a leaf. Original design. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M34,70 C24,70 20,62 24,56 C22,47 31,41 38,45 C40,36 52,33 58,40 C64,34 76,38 75,48 C84,49 86,60 79,66 C77,69 74,70 70,70 Z" />
+    <path android:fillColor="#7BC86C"
+        android:pathData="M60,38 C62,28 72,25 78,27 C77,34 70,40 60,38 Z" />
+    <path android:fillColor="#0E7C7B" android:pathData="M42,55 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 Z" />
+    <path android:fillColor="#0E7C7B" android:pathData="M60,55 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 Z" />
+    <path android:strokeColor="#0E7C7B" android:strokeWidth="3" android:strokeLineCap="round"
+        android:pathData="M46,62 Q54,68 62,62" />
+</vector>

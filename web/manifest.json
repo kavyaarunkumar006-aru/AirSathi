@@ -1,0 +1,9 @@
+{
+  "name": "AirSathi",
+  "short_name": "AirSathi",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F4F7F5",
+  "theme_color": "#0E7C7B",
+  "icons": []
+}

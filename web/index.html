@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AirSathi</title>
+<meta name="theme-color" content="#0E7C7B">
+<link rel="manifest" href="/web/manifest.json">
+<style>
+  :root { --bg:#F4F7F5; --card:#fff; --ink:#1b2624; --muted:#5b6865; --teal:#0E7C7B; --line:#dfe7e4; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1716; --card:#172120; --ink:#e6eeec; --muted:#a9b6b3; --teal:#5FB3AE; --line:#2a3634; } }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:var(--teal); color:#fff; padding:14px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  header h1 { font-size:20px; margin:0; flex:1; }
+  header select, header button, input, select { font:inherit; padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
+  button { cursor:pointer; }
+  main { max-width:960px; margin:0 auto; padding:16px; }
+  .banner { padding:8px 12px; border-radius:10px; margin-bottom:12px; background:#37474F; color:#fff; font-weight:600; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:10px; }
+  .card { background:var(--card); border-radius:18px; padding:16px; margin-bottom:12px; border:1px solid var(--line); }
+  .st { cursor:pointer; border-radius:16px; padding:12px; border:2px solid transparent; }
+  .st.sel { border-color:var(--teal); }
+  .big { font-size:56px; font-weight:700; line-height:1; }
+  .pill { display:inline-block; padding:2px 12px; border-radius:99px; font-weight:600; }
+  .fc { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; }
+  .fc div { border-radius:14px; padding:10px; text-align:center; }
+  .muted { color:var(--muted); font-size:14px; }
+  table { border-collapse:collapse; width:100%; font-size:14px; }
+  td, th { text-align:left; padding:6px; border-bottom:1px solid var(--line); }
+  .hidden { display:none; }
+  @media (max-width:520px) { .fc { grid-template-columns:repeat(2, 1fr); } .big { font-size:44px; } .grid { grid-template-columns:repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>AirSathi · Karnataka air quality</h1>
+  <select id="mode" aria-label="Mode"><option value="demo">Demo mode</option><option value="live">Live</option></select>
+  <select id="period" aria-label="Demo period"></select>
+  <button id="loginBtn">Log in</button>
+</header>
+<main>
+  <div id="banner" class="banner hidden"></div>
+  <div id="stations" class="grid"></div>
+  <section id="detail" class="card"></section>
+  <section id="advice" class="card"></section>
+  <section id="admin" class="card hidden"></section>
+  <section id="login" class="card hidden">
+    <h3>Log in</h3>
+    <p><input id="email" placeholder="E-mail" autocomplete="email"> <input id="pw" type="password" placeholder="Password" autocomplete="current-password">
+    <button id="doLogin">Log in</button></p>
+    <p class="muted">New accounts are created in the AirSathi app. The first account ever created is the admin.</p>
+    <p id="loginErr" class="muted"></p>
+  </section>
+  <p class="muted">Forecasts by the CSH-AQI model (CPCB AQI). Advice from CPCB [1], NCDC/MoHFW [3][4] and WHO [5]. Not medical advice; in an emergency call 112.
+  Station data: KSPCB via OpenAQ (CC BY 4.0). Model data: CAMS via Open-Meteo. <a href="/docs">API docs</a></p>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const darkText = (c) => (c?.index ?? 0) <= 3 ? "#1b1b1b" : "#fff";
+let state = { mode: "demo", period: "spring", station: "silkboard", token: localStorage.getItem("airsathi_token") };
+
+async function api(path, opts = {}) {
+  const h = opts.headers || {};
+  if (state.token) h.Authorization = "Bearer " + state.token;
+  const r = await fetch(path, { ...opts, headers: { "Content-Type": "application/json", ...h } });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.status);
+  return r.json();
+}
+const q = () => `mode=${state.mode}&period=${state.period}`;
+const t = (iso) => iso ? new Date(iso).toLocaleString([], { weekday: "short", hour: "numeric" }) : "";
+
+async function loadStations() {
+  const list = await api(`/api/stations?${q()}`);
+  $("stations").innerHTML = list.map((s) => {
+    const c = s.now?.category; const bg = c?.color || "#9e9e9e";
+    return `<div class="st ${s.id === state.station ? "sel" : ""}" data-id="${s.id}" style="background:${bg};color:${darkText(c)}">
+      <b>${esc(s.name)}</b><br><span class="muted" style="color:inherit">${esc(s.city)}</span>
+      <div style="font-size:30px;font-weight:700">${s.now?.aqi != null ? Math.round(s.now.aqi) : "–"}</div>${esc(c?.name || "No data")}</div>`;
+  }).join("");
+  document.querySelectorAll(".st").forEach((el) => el.onclick = () => { state.station = el.dataset.id; refresh(); });
+}
+
+async function loadDetail() {
+  const d = await api(`/api/stations/${state.station}?${q()}`);
+  const n = d.now, c = n.category;
+  $("banner").classList.toggle("hidden", state.mode !== "demo");
+  $("banner").textContent = `DEMO · ${d.period_label || ""} · ${n.ts ? new Date(n.ts).toLocaleString() : ""}`;
+  $("detail").innerHTML = `<h2>${esc(d.station.name)}, ${esc(d.station.city)}</h2>
+    <div class="big">${n.aqi != null ? Math.round(n.aqi) : "–"}</div>
+    <span class="pill" style="background:${c?.color || "#ccc"};color:${darkText(c)}">${esc(c?.name || "No data")}</span>
+    ${n.dominant ? `<span class="muted"> mainly ${esc({pm25:"PM2.5",pm10:"PM10",no2:"NO2",so2:"SO2",o3:"Ozone",co:"CO"}[n.dominant] || n.dominant)}</span>` : ""}
+    <p class="muted">${esc(n.label)}</p>
+    <h3>Next 24 hours</h3>
+    <div class="fc">${d.forecast.map((f) => `<div style="background:${f.category?.color};color:${darkText(f.category)}">
+      +${f.h} h<br><b style="font-size:26px">${f.aqi}</b><br>${esc(f.category?.name)}<br><small>likely ${f.lo}–${f.hi}</small></div>`).join("")}</div>`;
+  const a = await api(`/api/advice?station=${state.station}&${q()}`);
+  const ad = a.advice_now;
+  $("advice").innerHTML = ad ? `<h3>What to do (general advice)</h3><p><b>${esc(ad.headline.text)}</b> ${esc(ad.headline.source)}</p>
+    <ul>${ad.actions.map((x) => `<li>${esc(x.text)} ${esc(x.source)}</li>`).join("")}</ul>
+    ${ad.tip ? `<p>💡 ${esc(ad.tip.text)} ${esc(ad.tip.source)}</p>` : ""}<p class="muted">${esc(a.disclaimer.text)}</p>` : "<p>No advice: no data.</p>";
+}
+
+async function loadAdmin() {
+  if (!state.token) { $("admin").classList.add("hidden"); return; }
+  try {
+    const o = await api("/api/admin/overview");
+    $("admin").classList.remove("hidden");
+    $("admin").innerHTML = `<h3>Admin dashboard</h3>
+      <p>Users: <b>${o.users}</b> · Family members: <b>${o.members}</b> · Phones: <b>${o.devices}</b> · Diary entries: <b>${o.diary_entries}</b></p>
+      <h4>Data source per station</h4><table><tr><th>Station</th><th>Source</th><th>Reading time</th></tr>
+      ${o.status.map((s) => `<tr><td>${esc(s.name)}</td><td>${esc(s.label)}</td><td>${esc(s.ts || "")}</td></tr>`).join("")}</table>
+      <h4>Alerts sent (7 days)</h4><table>${o.alerts_last_7d.map((r) => `<tr><td>${esc(r.station)}</td><td>${esc(r.level)}</td><td>${r.n}</td></tr>`).join("") || "<tr><td>None yet</td></tr>"}</table>
+      <h4>Hourly job runs</h4><table><tr><th>Started (UTC)</th><th>Status</th></tr>
+      ${o.job_runs.map((r) => `<tr><td>${esc(r.started)}</td><td>${esc(r.status)}</td></tr>`).join("") || "<tr><td>No runs yet</td></tr>"}</table>
+      <h4>Newest users</h4><table>${o.recent_users.map((u) => `<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${esc(u.created_at)}</td></tr>`).join("")}</table>`;
+  } catch (e) { $("admin").classList.add("hidden"); }
+}
+
+async function refresh() {
+  try { await loadStations(); await loadDetail(); } catch (e) { $("detail").innerHTML = `<p>Could not load data (${esc(e.message)}). The free server may be waking up: wait a minute and reload.</p>`; }
+  loadAdmin();
+  $("loginBtn").textContent = state.token ? "Log out" : "Log in";
+  $("period").style.display = state.mode === "demo" ? "" : "none";
+}
+
+$("mode").onchange = (e) => { state.mode = e.target.value; refresh(); };
+$("period").onchange = (e) => { state.period = e.target.value; refresh(); };
+$("loginBtn").onclick = () => {
+  if (state.token) { state.token = null; localStorage.removeItem("airsathi_token"); refresh(); }
+  else $("login").classList.toggle("hidden");
+};
+$("doLogin").onclick = async () => {
+  try {
+    const r = await api("/api/auth/login", { method: "POST", body: JSON.stringify({ email: $("email").value, password: $("pw").value }) });
+    state.token = r.token; localStorage.setItem("airsathi_token", r.token); $("login").classList.add("hidden"); refresh();
+  } catch (e) { $("loginErr").textContent = "Login failed: " + e.message; }
+};
+
+api("/api/demo/periods").then((ps) => { $("period").innerHTML = ps.map((p) => `<option value="${p.id}">${esc(p.label)}</option>`).join(""); });
+refresh();
+</script>
+</body>
+</html>

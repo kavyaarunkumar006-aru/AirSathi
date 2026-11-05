@@ -1,0 +1,24 @@
+# secrets: never commit these
+.env
+*.env
+**/google-services.json
+**/*service-account*.json
+*.jks
+*.keystore
+local.properties
+
+# local data and builds
+backend/data/airsathi.db
+research_inputs/*.pkl
+research_inputs/*.csv
+__pycache__/
+*.pyc
+.venv/
+android/.gradle/
+android/build/
+android/app/build/
+android/.idea/
+android/captures/
+*.apk
+*.aab
+.DS_Store

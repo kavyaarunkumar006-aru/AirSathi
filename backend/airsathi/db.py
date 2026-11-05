@@ -4,6 +4,7 @@ Set DATABASE_URL to a postgres:// URL to use PostgreSQL; otherwise a local file 
 All SQL in this project is written with '?' placeholders; for PostgreSQL they are converted to '%s'.
 """
 import os
+import re
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -90,11 +91,15 @@ def one(q, params=()):
     return r[0] if r else None
 
 
+ID_TABLES = {"users", "members", "diary", "devices", "alerts_sent", "job_runs"}    # tables that have an 'id' column
+
+
 def execute(q, params=()):
-    """Run an INSERT/UPDATE/DELETE. For INSERTs returns the new row id."""
+    """Run an INSERT/UPDATE/DELETE. For INSERTs into a table with an 'id' column, returns the new row id."""
+    m = re.match(r"\s*INSERT\s+INTO\s+(\w+)", q, re.IGNORECASE)
     with conn() as c:
         cur = c.cursor()
-        if IS_PG and q.strip().upper().startswith("INSERT") and "RETURNING" not in q.upper() and "ON CONFLICT" not in q.upper():
+        if IS_PG and m and m.group(1).lower() in ID_TABLES and "RETURNING" not in q.upper() and "ON CONFLICT" not in q.upper():
             cur.execute(_sql(q) + " RETURNING id", params)
             return cur.fetchone()[0]
         cur.execute(_sql(q), params)
